@@ -1,13 +1,9 @@
-import Messages from "@/components/messages/Messages";
-import Sidebar from "@/components/sidebar/Sidebar";
+import Dashboard from "@/components/dashboard/Dashboard";
 import { redirectNotAuth } from "@/lib/redirectNotAuth";
 
 export default async function Home() {
-  await redirectNotAuth()
+  await redirectNotAuth();
   return (
-    <div className='h-screen flex'>
-      <Sidebar />
-      <Messages />
-    </div>
+    <Dashboard />
   );
 }
