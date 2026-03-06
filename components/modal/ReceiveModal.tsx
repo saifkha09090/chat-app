@@ -39,10 +39,10 @@ export function ReceiveModal({
   }, [myId])
 
   const recieveInvite = async (user: any) => {
-      const {data, error} = await supabase.from("invites").select("*, profiles!invites_receiver_id_fkey(*)").eq("sender_id", user.data.user?.id)
+      const {data, error} = await supabase.from("invites").select("*, profiles!invites_receiver_id_fkey(*)").eq("sender_id", user.sender_id).single()
     await supabase.from("invites").update({ status: "accept"}).eq("id", user?.id)
     setInviteUsers((invite) => invite?.filter((i) => i?.id !== user?.id)!)
-    openConversation(user.sender_id)
+    openConversation(data)
   };
 
   return (
