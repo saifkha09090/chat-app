@@ -6,6 +6,10 @@ import { IoSearchSharp } from "react-icons/io5";
 import { supabase } from "@/lib/supabase/client";
 import { useEffect, useState } from "react";
 import { MdOutlineDelete } from "react-icons/md";
+import { CiCirclePlus } from "react-icons/ci";
+import { UserModal } from "@/components/modal/UserModal";
+import { SettingModal } from "@/components/modal/SettingModal";
+import { ReceiveModal } from "@/components/modal/ReceiveModal";
 
 type props = {
   setSelectedUser: any;
@@ -17,6 +21,8 @@ const Sidebar = ({ setSelectedUser, setConversationId }: props) => {
   const [searchUsers, setSearchUsers] = useState<any[] | null>([]);
   const [conversation, setConversation] = useState<any[] | null>([]);
   const [myId, setMyId] = useState<string | null>(null);
+  const [myUsername, setMyUsername] = useState<string | null>(null);
+  const [toggle, setToggle] = useState(false);
 
   useEffect(() => {
     getUser();
@@ -26,6 +32,7 @@ const Sidebar = ({ setSelectedUser, setConversationId }: props) => {
     const { data: auth } = await supabase.auth.getUser();
     setMyId(auth.user?.id || null);
     fetchConversation(auth.user?.id);
+    setMyUsername(auth.user?.user_metadata.username)
   };
 
   useEffect(() => {
@@ -52,22 +59,20 @@ const Sidebar = ({ setSelectedUser, setConversationId }: props) => {
         user2_profile:profiles!conversations_user2_fkey(*)`,
       )
       .or(`user1.eq.${userId},user2.eq.${userId}`);
+
+      console.log(data);
       
+
     setConversation(data || []);
   };
 
-  const handleSearch = async (value: string) => {
-    setSearch(value);
-
-    if (!value) {
+  const handleSearch = async () => {
+    if (!search) {
       setSearchUsers([]);
       return;
     }
 
-    const { data } = await supabase
-      .from("profiles")
-      .select("*")
-      .ilike("username", `%${value}%`);
+    const { data } = await supabase.from("profiles").select("*");
     const filtered = data!.filter((id) => id.id !== myId);
     setSearchUsers(filtered);
   };
@@ -83,8 +88,6 @@ const Sidebar = ({ setSelectedUser, setConversationId }: props) => {
     //   )
     //   .maybeSingle();
 
-    
-        // if (!cId) {
           const { data } = await supabase
             .from("conversations")
             .insert({
@@ -93,8 +96,6 @@ const Sidebar = ({ setSelectedUser, setConversationId }: props) => {
             })
             .select()
             .single();
-          // cId = data.id;
-        // }
 
     if (data) {
       setConversationId(data.id);
@@ -119,41 +120,47 @@ const Sidebar = ({ setSelectedUser, setConversationId }: props) => {
     setConversationId(null);
   };
 
+  const on = async () => {
+    setToggle(!toggle);
+    await supabase.from("profiles").update({ account_type: !toggle }).eq("id", myId)
+  };
+
   return (
-    <div className="w-1/3 px-3 bg-[#282828] text-white">
+    <div className="w-1/3 px-3 bg-[#1a1919] text-white">
       <header className="flex justify-between items-center py-2">
-        <h1 className="">Chat-app</h1>
+        <h1 className="font-bold">Chat-app {myUsername}</h1>
         <LogoutBtn />
       </header>
-      <main className="py-2">
+      <main className="py-2 h-[86%]">
         <div className="flex items-center mb-2">
-          <div className="p-3.5 bg-[#ededed] text-black border-r-0 rounded-lg rounded-br-none rounded-tr-none">
-            <IoSearchSharp />
-          </div>
           <input
             type="text"
             name="searchBox"
             autoComplete="off"
             value={search}
-            onChange={(e) => handleSearch(e.target.value)}
-            className="w-full border-l-0 rounded-lg text-black rounded-bl-none rounded-tl-none bg-[#ededed] focus-visible:outline-none p-2.5"
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full border-r-0 rounded-lg text-black rounded-br-none rounded-tr-none bg-[#ededed] focus-visible:outline-none p-2.5"
             placeholder="Search user"
           />
+          <div
+            onClick={handleSearch}
+            className="p-3.5 bg-[#ededed] text-black border-l-0 rounded-lg rounded-bl-none rounded-tl-none"
+          >
+            <IoSearchSharp />
+          </div>
         </div>
         <div className="mt-3 flex flex-col gap-2.5">
           {searchUsers?.map((user) => (
             <div
               key={user.id}
               onClick={() => openConversation(user)}
-              className="flex p-1 items-center gap-4 cursor-pointer hover:bg-gray-100 hover:text-black rounded-sm"
+              className="flex items-center gap-4  cursor-pointer bg-[#333131] p-2 hover:bg-[#393737] rounded"
             >
               <div className="bg-blue-100 rounded-full">
                 <BiUserCircle size={24} className="text-blue-500" />
               </div>
               <div>
-                <p className="font-medium wrap-break-word">
-                  {user.username}
-                </p>
+                <p className="font-medium wrap-break-word">{user.username}</p>
               </div>
             </div>
           ))}
@@ -164,19 +171,19 @@ const Sidebar = ({ setSelectedUser, setConversationId }: props) => {
               return (
                 <div
                   key={c.id}
-                  className="flex justify-between items-center p-2 hover:bg-gray-100 hover:text-black rounded"
+                  className="flex justify-between bg-[#333131] items-center p-2 hover:bg-[#393737] rounded"
                 >
                   <div
                     onClick={() => {
                       setSelectedUser(otherUser);
                       setConversationId(c.id);
                     }}
-                    className="flex w-full items-center gap-3 cursor-pointer"
+                    className="flex px-0.5 py-1.5 w-full items-center gap-3 cursor-pointer"
                   >
                     <div className="bg-blue-100 rounded-full">
-                <BiUserCircle size={24} className="text-blue-500" />
-              </div>
-                   <div>
+                      <BiUserCircle size={24} className="text-blue-500" />
+                    </div>
+                    <div>
                       <p className="font-medium wrap-break-word">
                         {otherUser?.username}
                       </p>
@@ -194,6 +201,11 @@ const Sidebar = ({ setSelectedUser, setConversationId }: props) => {
             })}
         </div>
       </main>
+      <footer className="flex justify-end">
+        <ReceiveModal myId={myId!} openConversation={openConversation} />
+        <UserModal myId={myId!} openConversation={openConversation} />
+        <SettingModal on={on} toggle={toggle} />
+      </footer>
     </div>
   );
 };

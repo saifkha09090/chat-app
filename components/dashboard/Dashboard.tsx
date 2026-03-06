@@ -10,7 +10,7 @@ const Dashboard = () => {
   return (
     <div className="h-screen flex">
       <Sidebar setSelectedUser={setSelectedUser} setConversationId={setConversationId}  />
-      <Messages selectedUser={selectedUser} conversationId={conversationId} setSelectedUser={setSelectedUser} />
+      <Messages selectedUser={selectedUser} conversationId={conversationId} setSelectedUser={setSelectedUser} setConversationId={setConversationId} />
     </div>
   )
 }

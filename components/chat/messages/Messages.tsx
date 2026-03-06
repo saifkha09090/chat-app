@@ -5,22 +5,36 @@ import { IoSend } from "react-icons/io5";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
 import { MdOutlineClear } from "react-icons/md";
-import wb from "@/public/wb.jpg"
 
 type props = {
   selectedUser: any;
   conversationId: string | null;
   setSelectedUser: any;
+  setConversationId: any;
 };
 
-const Messages = ({ selectedUser, conversationId, setSelectedUser }: props) => {
+const Messages = ({
+  selectedUser,
+  conversationId,
+  setSelectedUser,
+  setConversationId,
+}: props) => {
   const [messages, setMessages] = useState<any[]>([]);
   const [input, setInput] = useState("");
   const [myId, setMyId] = useState<string | null>(null);
-   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
-   useEffect(() => {
-    audioRef.current = new Audio('/notification1.mp3');
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  useEffect(() => {
+    audioRef.current = new Audio("/notification1.mp3");
   }, []);
 
   const playNotificationSound = () => {
@@ -43,7 +57,7 @@ const Messages = ({ selectedUser, conversationId, setSelectedUser }: props) => {
   useEffect(() => {
     if (!conversationId) return setMessages([]);
 
-    fetchMessages()
+    fetchMessages();
 
     const channel = supabase
       .channel("chat")
@@ -57,9 +71,9 @@ const Messages = ({ selectedUser, conversationId, setSelectedUser }: props) => {
         },
         (payload) => {
           if (payload.new.sender_id !== myId) {
-          playNotificationSound();
-        }
-          setMessages((prev) => [...prev, payload.new])
+            playNotificationSound();
+          }
+          setMessages((prev) => [...prev, payload.new]);
         },
       )
       .subscribe();
@@ -69,7 +83,7 @@ const Messages = ({ selectedUser, conversationId, setSelectedUser }: props) => {
   }, [conversationId]);
 
   const fetchMessages = async () => {
-    if (!conversationId) return
+    if (!conversationId) return;
 
     const { data } = await supabase
       .from("messages")
@@ -86,6 +100,7 @@ const Messages = ({ selectedUser, conversationId, setSelectedUser }: props) => {
 
     let cId = conversationId;
 
+
     await supabase.from("messages").insert({
       conversation_id: cId,
       sender_id: myId,
@@ -101,14 +116,17 @@ const Messages = ({ selectedUser, conversationId, setSelectedUser }: props) => {
 
   if (!selectedUser)
     return (
-      <div className="w-2/3 flex items-center justify-center ml-px bg-[#282828] text-white">
-        Select a user to start chat
+      <div className="relative w-2/3">
+        <div className="absolute inset-0 bg-[url('/bg1.jpg')] bg-center before:absolute before:inset-0 before:bg-black/50"></div>
+        <div className="relative z-10 h-full flex items-center justify-center ml-px border-l border-[#827d7d] text-white">
+          Select a user to start chat
+        </div>
       </div>
     );
 
   return (
-    <div className="w-2/3 pl-px">
-      <header className="flex justify-between items-center bg-[#282828] px-2.5 py-2">
+    <div className="w-2/3 border-l border-[#636060] bg-black/50">
+      <header className="flex justify-between items-center bg-[#1a1919] px-2.5 py-2">
         <div className="flex p-1 items-center gap-4 rounded-sm">
           <BiUserCircle size={24} className="text-blue-500" />
           <p className="text-white font-medium wrap-break-word">
@@ -119,42 +137,42 @@ const Messages = ({ selectedUser, conversationId, setSelectedUser }: props) => {
           <MdOutlineClear className="text-white" />
         </button>
       </header>
-      <div style={{
-        backgroundImage: `url('/db.jfif')`,
-      }} className="p-2 h-[92.5%]">
-        <div className="flex-1 overflow-y-auto py-3 space-y-2 h-[92%] [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+      <div className="relative p-2 h-[92.5%]">
+        <div className="absolute inset-0 bg-[url('/db.jpg')] bg-cover before:absolute before:inset-0 before:bg-black/50"></div>
+        <div className="relative z-10 flex-1 overflow-y-auto py-3 space-y-2 h-[92%] [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           {messages.map((m) => (
             <div
               key={m.id}
-              className={`p-2 rounded max-w-xs ${
+              className={`max-w-xs md:max-w-md lg:max-w-lg wrap-break-word w-max rounded-lg p-3 shadow-md  ${
                 m.sender_id === myId
-                  ? "bg-blue-500 text-white ml-auto"
-                  : "bg-gray-200"
+                  ? "bg-[#144d37] text-white ml-auto rounded-br-none"
+                  : "bg-gray-200 rounded-bl-none"
               }`}
             >
               {m.text}
             </div>
           ))}
+          <div ref={messagesEndRef} />
         </div>
-      <footer className="pt-0.5">
-        <form onSubmit={sendMessage} className="flex items-center mb-2">
-          <input
-            type="text"
-            name="searchBox"
-            autoComplete="off"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            className="w-full bg-[#ededed] border-r-0 rounded-lg rounded-br-none rounded-tr-none border-2 border-[#dcd8d8] outline-none p-2.5"
-            placeholder="Type a message"
-          />
-          <button
-            type="submit"
-            className={`border-2 bg-[#ededed] border-[#dcd8d8] border-l-0 rounded-lg rounded-bl-none rounded-tl-none  ${input !== "" ? "p-3.5 cursor-pointer" : "p-5.5"}`}
-          >
-            {input !== "" && <IoSend className="text-blue-500" />}
-          </button>
-        </form>
-      </footer>
+        <footer className="relative z-10 pt-0.5">
+          <form onSubmit={sendMessage} className="flex items-center mb-2">
+            <input
+              type="text"
+              name="searchBox"
+              autoComplete="off"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              className="w-full bg-[#ededed] border-r-0 rounded-lg rounded-br-none rounded-tr-none border-2 border-[#dcd8d8] outline-none p-2.5"
+              placeholder="Type a message"
+            />
+            <button
+              type="submit"
+              className={`border-2 bg-[#ededed] border-[#dcd8d8] border-l-0 rounded-lg rounded-bl-none rounded-tl-none  ${input !== "" ? "p-3.5 cursor-pointer" : "p-5.5"}`}
+            >
+              {input !== "" && <IoSend className="text-blue-500" />}
+            </button>
+          </form>
+        </footer>
       </div>
     </div>
   );
