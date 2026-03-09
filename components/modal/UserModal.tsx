@@ -9,10 +9,13 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { supabase } from "@/lib/supabase/client";
-import { FormEvent, useState } from "react";
+import { User } from "@/types/type";
+import { FormEvent, useEffect, useState } from "react";
+import toast from "react-hot-toast";
 import { AiFillMessage } from "react-icons/ai";
 import { BiUserCircle } from "react-icons/bi";
-import { CiCirclePlus } from "react-icons/ci";
+import { FaUserCheck } from "react-icons/fa";
+import { ImUserPlus } from "react-icons/im";
 import { IoMdPersonAdd } from "react-icons/io";
 import { IoSearchSharp } from "react-icons/io5";
 
@@ -21,41 +24,70 @@ export function UserModal({
   openConversation,
 }: {
   myId: string;
-  openConversation: any;
+  openConversation: (user: User) => void;
 }) {
   const [search, setSearch] = useState("");
-  const [searchUsers, setSearchUsers] = useState<any[] | null>([]);
+  const [searchUsers, setSearchUsers] = useState<User[] | null>([]);
+  const [pendingUsers, setPendingUsers] = useState<User[] | null>([]);
+  const [acceptUsers, setAcceptUsers] = useState<User[] | null>([]);
   const isValidEmail = /^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/g;
 
-  const handleSearch = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!search) return setSearchUsers([]);
+  useEffect(() => {
+    fetchUser();
+  }, [myId]);
 
+  const fetchUser = async () => {
+    if (!myId) return;
+    const { data: pendingData } = await supabase
+      .from("invites")
+      .select("receiver_id")
+      .eq("status", "pending");
+
+    const { data: acceptData } = await supabase
+      .from("invites")
+      .select("receiver_id")
+      .eq("status", "accept");
+
+    const id = pendingData?.map((i) => i.receiver_id);
+    const acceptId = acceptData?.map((i) => i.receiver_id);
+
+    setPendingUsers(id!);
+    setAcceptUsers(acceptId!);
+  };
+
+  const handleSearch = async (value: string) => {
+    setSearch(value);
+
+    if (!value) return setSearchUsers([]);
     const { data } = await supabase
       .from("profiles")
       .select("*")
-      .or(`email.eq.${search},username.eq.${search}`);
+      .ilike("username", `%${search}%`)
+      .neq("id", myId);
 
-    const filtered = data!.filter((id) => id.id !== myId);
-    setSearchUsers(filtered);
+      if (!value) return setSearchUsers([]);
+    setSearchUsers(data);
   };
 
   const sendInvite = async (id: string) => {
-    const {error} = await supabase.from("invites").insert({
-      sender_id : myId,
+    const { error } = await supabase.from("invites").insert({
+      sender_id: myId,
       receiver_id: id,
-      status: "pending"
-    })
+      status: "pending",
+    });
 
-    if(error){
-      console.log(error)
+    if (error) {
+      console.log(error);
     }
-  }
+    fetchUser();
+    toast.success("invite send");
+  };
+
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <button className="bg-[#333131] rounded-full text-blue-500">
-          <CiCirclePlus size={30} className="cursor-pointer" />
+        <button className="text-blue-500 hover:text-blue-400">
+          <ImUserPlus size={25} className="cursor-pointer" />
         </button>
       </DialogTrigger>
       <DialogContent className="bg-[#1a1919] border-none text-white p-0 gap-0 rounded-md">
@@ -64,27 +96,24 @@ export function UserModal({
           <DialogDescription />
         </DialogHeader>
         <div className="px-5 py-2">
-          <form onSubmit={handleSearch} className="flex items-center mb-2">
+          <div className="flex items-center mb-2">
             <input
               type="text"
               name="searchBox"
               autoComplete="off"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => handleSearch(e.target.value)}
               className="w-full border-r-0 rounded-lg text-black rounded-br-none rounded-tr-none bg-[#ededed] focus-visible:outline-none py-2.5 pl-3 pr-2"
               placeholder="Search user"
             />
-            <button
-              type="submit"
-              className="p-3.5 bg-blue-500 border-l-0 rounded-lg rounded-bl-none rounded-tl-none cursor-pointer hover:bg-blue-400"
-            >
+            <button className="p-3.5 bg-blue-500 border-l-0 rounded-lg rounded-bl-none rounded-tl-none cursor-pointer hover:bg-blue-400">
               <IoSearchSharp />
             </button>
-          </form>
+          </div>
           <div className="flex flex-col gap-2.5">
             {searchUsers?.map((user: any) => (
               <div
-                key={user.id}
+                key={user?.id}
                 className="flex justify-between bg-[#333131] items-center p-2 rounded"
               >
                 <div className="flex px-0.5 py-1.5 w-full items-center gap-3">
@@ -99,19 +128,29 @@ export function UserModal({
                 </div>
 
                 <button className=" text-sm cursor-pointer">
-                  {user.account_type ? (
+                  {user.account_type || acceptUsers?.includes(user?.id) ? (
                     <DialogClose asChild>
                       <AiFillMessage
                         onClick={() => {
-                          (openConversation(user), setSearchUsers([]), setSearch(""));
+                          (openConversation(user),
+                            setSearchUsers([]),
+                            setSearch(""));
                         }}
                         size={18}
                         className="text-blue-500 hover:text-blue-400"
                       />
                     </DialogClose>
+                  ) : pendingUsers?.includes(user?.id) ? (
+                    <>
+                      <FaUserCheck
+                        onClick={() => toast.error("invite already send")}
+                        size={18}
+                        className="text-green-500"
+                      />
+                    </>
                   ) : (
                     <IoMdPersonAdd
-                    onClick={() => sendInvite(user?.id)}
+                      onClick={() => sendInvite(user?.id)}
                       size={18}
                       className="text-green-500 hover:text-green-400"
                     />

@@ -26,8 +26,8 @@ const Login = () => {
     }
   }, [searchParams, router]);
   return (
-    <div className="h-screen flex items-center justify-center">
-      <div className="bg-white m-5 py-4 px-6 rounded-xl shadow-md w-full max-w-md">
+    <div className="h-screen bg-[#1a1919] text-white flex items-center justify-center">
+      <div className="bg-[#333131] m-5 py-4 px-6 rounded-xl shadow-md w-full max-w-md">
         <h2 className="text-2xl pb-4 text-center font-bold">Sign In</h2>
         <form action={LoginUser}>
           <div className="mb-1">
