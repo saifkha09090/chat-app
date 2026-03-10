@@ -41,7 +41,7 @@ const Messages = ({
   }, []);
 
   const getUser = async () => {
-    const user =(await supabase.auth.getUser()).data.user;
+    const user = (await supabase.auth.getUser()).data.user;
     setMyId(user?.id || null);
   };
 
@@ -49,9 +49,10 @@ const Messages = ({
     if (!conversationId) return setMessages([]);
 
     fetchMessages();
+    markMessagesSeen();
 
     const channel = supabase
-      .channel("chat")
+      .channel(`chat-${conversationId}`)
       .on(
         "postgres_changes",
         {
@@ -61,7 +62,16 @@ const Messages = ({
           filter: `conversation_id=eq.${conversationId}`,
         },
         (payload) => {
-          setMessages((prev) => [...prev, payload.new]);
+          const newMsg = payload.new;
+
+          setMessages((prev) => [...prev, newMsg]);
+
+          if (newMsg.sender_id !== myId) {
+            supabase
+              .from("messages")
+              .update({ seen: true })
+              .eq("id", newMsg.id);
+          }
         },
       )
       .subscribe();
@@ -93,6 +103,17 @@ const Messages = ({
     });
 
     setInput("");
+  };
+
+  const markMessagesSeen = async () => {
+    if (!conversationId || !myId) return;
+
+    await supabase
+      .from("messages")
+      .update({ seen: true })
+      .eq("conversation_id", conversationId)
+      .neq("sender_id", myId)
+      .eq("seen", false);
   };
 
   const handleCancel = () => {
@@ -136,8 +157,14 @@ const Messages = ({
                 }`}
               >
                 {m.text}
+                {m.sender_id === myId && (
+                  <span className="text-xs ml-2">
+                    {m.seen ? "Seen" : "Sent"}
+                  </span>
+                )}
               </div>
             ))}
+
             <div ref={messagesEndRef} />
           </div>
           <footer className="relative z-10 pt-0.5">

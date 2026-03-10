@@ -39,37 +39,50 @@ export function ReceiveModal({
   };
 
     useEffect(() => {
-      if (!myId) return;
-      fetchInvite()
-  
-      const channel = supabase
-        .channel("invites")
-        .on(
-          "postgres_changes",
-          { event: "INSERT", schema: "public", table: "invites" },
-          () => fetchInvite(),
-        )
-        .subscribe();
-      return () => {
-        supabase.removeChannel(channel);
-      };
-    }, [fetchInvite]);
+  if (!myId) return;
+
+  fetchInvite();
+
+  const channel = supabase
+    .channel("invites-realtime")
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "invites",
+        filter: `receiver_id=eq.${myId}`,
+      },
+      () => {
+        fetchInvite();
+      }
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}, [myId]);
 
   const acceptInvite = async (user: any) => {
-    await supabase
-      .from("invites")
-      .update({ status: "accept" })
-      .eq("id", user?.id);
 
-    setInviteUsers((invite) => invite?.filter((i) => i?.id !== user?.id)!);
+  await supabase
+    .from("invites")
+    .update({ status: "accept" })
+    .or(
+      `and(sender_id.eq.${user.sender_id},receiver_id.eq.${myId}),
+       and(sender_id.eq.${myId},receiver_id.eq.${user.sender_id})`
+    );
 
-    openConversation({
-      id: user?.sender_id,
-      username: user?.profiles.username,
-    });
+  setInviteUsers((invite) => invite?.filter((i) => i?.id !== user?.id)!);
 
-    toast.success("Inivitation accepted");
-  };
+  openConversation({
+    id: user?.sender_id,
+    username: user?.profiles.username,
+  });
+
+  toast.success("Invitation accepted");
+};
 
   const rejectInvite = async (user: User) => {
     await supabase.from("invites").delete().eq("id", user?.id);

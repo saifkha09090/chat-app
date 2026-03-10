@@ -49,7 +49,7 @@ const Sidebar = ({
       .channel("conversation_realtime")
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "conversations" },
+        { event: "*", schema: "public", table: "conversations" },
         () => fetchConversation(myId),
       )
       .subscribe();
@@ -73,26 +73,29 @@ const Sidebar = ({
   const handleSearch = async (value: string) => {
     setSearch(value);
 
-    const { data } = await supabase
-      .from("conversations")
-      .select(
-        `id,user1_profile:profiles!conversations_user1_fkey(*),
-        user2_profile:profiles!conversations_user2_fkey(*)`,
-      )
-
-    const a = data?.map((u) => u.user1_profile);
-    const b = data?.map((u) => u.user2_profile);
-    const c = a?.filter((i) => i?.id !== myId);
-    const d = b?.filter((i) => i?.id !== myId);
-    const uniqueProfiles = Array.from(
-      new Map(
-        [...c, ...d].map((user) => [user?.id, user])
-      ).values(),
-    );
-    // console.log(uniqueProfiles);
-    
     if (!value) return setSearchUsers([]);
-    setSearchUsers(uniqueProfiles);
+
+    const { data } = await supabase
+      .from("invites")
+      .select(
+        `sender_id,receiver_id,
+       sender:profiles!invites_sender_id_fkey(*),
+       receiver:profiles!invites_receiver_id_fkey(*)`,
+      )
+      .eq("status", "accept")
+      .or(`sender_id.eq.${myId},receiver_id.eq.${myId}`);
+
+    if (!data) return;
+
+    const users = data.map((i: any) =>
+      i.sender_id === myId ? i.receiver : i.sender,
+    );
+
+    const filtered = users.filter((u: any) =>
+      u.username.toLowerCase().includes(value.toLowerCase()),
+    );
+
+    setSearchUsers(filtered);
   };
 
   const openConversation = async (user: any) => {

@@ -62,7 +62,7 @@ export function UserModal({
     const { data } = await supabase
       .from("profiles")
       .select("*")
-      .ilike("username", `%${search}%`)
+      .ilike("username", `%${value}%`)
       .neq("id", myId);
 
       if (!value) return setSearchUsers([]);
@@ -70,18 +70,30 @@ export function UserModal({
   };
 
   const sendInvite = async (id: string) => {
-    const { error } = await supabase.from("invites").insert({
-      sender_id: myId,
-      receiver_id: id,
-      status: "pending",
-    });
 
-    if (error) {
-      console.log(error);
-    }
-    fetchUser();
-    toast.success("invite send");
-  };
+  const { data } = await supabase
+    .from("invites")
+    .select("*")
+    .or(
+      `and(sender_id.eq.${myId},receiver_id.eq.${id}),
+       and(sender_id.eq.${id},receiver_id.eq.${myId})`
+    )
+    .maybeSingle();
+
+  if (data) {
+    toast.error("Invite already exists");
+    return;
+  }
+
+  await supabase.from("invites").insert({
+    sender_id: myId,
+    receiver_id: id,
+    status: "pending",
+  });
+
+  fetchUser();
+  toast.success("Invite sent");
+};
 
   return (
     <Dialog>
