@@ -9,20 +9,25 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { supabase } from "@/lib/supabase/client";
-import { Conversation, Invite, User } from "@/types/type";
+import { User } from "@/types/type";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { BiUserCircle } from "react-icons/bi";
 import { IoIosNotifications } from "react-icons/io";
 
-export function ReceiveModal({
-  openConversation,
-  myId
-}: {
-  openConversation: any;
-  myId: string
-}) {
+export function ReceiveModal({ openConversation }: { openConversation: any }) {
   const [inviteUsers, setInviteUsers] = useState<User[] | null>([]);
+  const [myId, setMyId] = useState<string | null>(null);
+
+
+  const getUser = async () => {
+    const user = (await supabase.auth.getUser()).data.user;
+    setMyId(user?.id || null);
+  };
+
+  useEffect(() => {
+    getUser();
+  }, []);
 
   const fetchInvite = async () => {
     const { data, error } = await supabase
@@ -38,56 +43,54 @@ export function ReceiveModal({
     setInviteUsers(data);
   };
 
-    useEffect(() => {
-  if (!myId) return;
+  useEffect(() => {
+    if (!myId) return;
 
-  fetchInvite();
+    fetchInvite();
 
-  const channel = supabase
-    .channel("invites-realtime")
-    .on(
-      "postgres_changes",
-      {
-        event: "*",
-        schema: "public",
-        table: "invites",
-        filter: `receiver_id=eq.${myId}`,
-      },
-      () => {
-        fetchInvite();
-      }
-    )
-    .subscribe();
-
-  return () => {
-    supabase.removeChannel(channel);
-  };
-}, [myId]);
+    const channel = supabase
+      .channel(`invites-realtime-${myId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "invites",
+          filter: `receiver_id=eq.${myId}`,
+        },
+        () => fetchInvite(),
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [myId]);
 
   const acceptInvite = async (user: any) => {
+    await supabase
+      .from("invites")
+      .update({ status: "accept" })
+      .eq("id", user?.id);
 
-  await supabase
-    .from("invites")
-    .update({ status: "accept" })
-    .or(
-      `and(sender_id.eq.${user.sender_id},receiver_id.eq.${myId}),
-       and(sender_id.eq.${myId},receiver_id.eq.${user.sender_id})`
-    );
+    await supabase.from("invites").upsert({
+      sender_id: myId,
+      receiver_id: user.sender_id,
+      status: "accept",
+    });
 
-  setInviteUsers((invite) => invite?.filter((i) => i?.id !== user?.id)!);
+    setInviteUsers((invite) => invite?.filter((i) => i?.id !== user?.id)!);
 
-  openConversation({
-    id: user?.sender_id,
-    username: user?.profiles.username,
-  });
+    openConversation({
+      id: user?.sender_id,
+      username: user?.profiles.username,
+    });
 
-  toast.success("Invitation accepted");
-};
-
+    toast.success("Invitation accepted");
+  };
   const rejectInvite = async (user: User) => {
     await supabase.from("invites").delete().eq("id", user?.id);
     setInviteUsers((invite) => invite?.filter((i) => i?.id !== user?.id)!);
-    fetchInvite()
+    fetchInvite();
     toast.success("Inivitation rejected");
   };
 
@@ -100,7 +103,10 @@ export function ReceiveModal({
               {inviteUsers?.length}
             </div>
           )}
-          <IoIosNotifications size={30} className="cursor-pointer text-[#ededed]" />
+          <IoIosNotifications
+            size={30}
+            className="cursor-pointer text-[#ededed]"
+          />
         </button>
       </DialogTrigger>
       <DialogContent className="bg-[#1a1919] border-none text-white p-0 gap-0 rounded-md">

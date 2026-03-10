@@ -5,13 +5,12 @@ import { IoSend } from "react-icons/io5";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
 import { MdOutlineClear } from "react-icons/md";
-import { Message, User } from "@/types/type";
+import { User } from "@/types/type";
 
 type props = {
   selectedUser: User;
   conversationId: string | null;
   setSelectedUser: any;
-  setConversationId: any;
   open: boolean;
   setOpen: any;
 };
@@ -26,15 +25,11 @@ const Messages = ({
   const [messages, setMessages] = useState<any[]>([]);
   const [input, setInput] = useState("");
   const [myId, setMyId] = useState<string | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
 
   useEffect(() => {
     getUser();
@@ -44,12 +39,13 @@ const Messages = ({
     const user = (await supabase.auth.getUser()).data.user;
     setMyId(user?.id || null);
   };
-
   useEffect(() => {
-    if (!conversationId) return setMessages([]);
+    if (!selectedUser || !conversationId) {
+      setMessages([]);
+      return;
+    }
 
     fetchMessages();
-    markMessagesSeen();
 
     const channel = supabase
       .channel(`chat-${conversationId}`)
@@ -62,16 +58,7 @@ const Messages = ({
           filter: `conversation_id=eq.${conversationId}`,
         },
         (payload) => {
-          const newMsg = payload.new;
-
-          setMessages((prev) => [...prev, newMsg]);
-
-          if (newMsg.sender_id !== myId) {
-            supabase
-              .from("messages")
-              .update({ seen: true })
-              .eq("id", newMsg.id);
-          }
+          setMessages((prev) => [...prev, payload.new]);
         },
       )
       .subscribe();
@@ -81,15 +68,18 @@ const Messages = ({
   }, [conversationId]);
 
   const fetchMessages = async () => {
-    if (!conversationId) return;
+    if (!conversationId) return setMessages([]);
 
     const { data } = await supabase
       .from("messages")
       .select("*")
       .eq("conversation_id", conversationId)
+      .limit(50)
       .order("created_at", { ascending: true });
 
     setMessages(data || []);
+
+      scrollToBottom()
   };
 
   const sendMessage = async (e: FormEvent) => {
@@ -104,21 +94,14 @@ const Messages = ({
 
     setInput("");
   };
-
-  const markMessagesSeen = async () => {
-    if (!conversationId || !myId) return;
-
-    await supabase
-      .from("messages")
-      .update({ seen: true })
-      .eq("conversation_id", conversationId)
-      .neq("sender_id", myId)
-      .eq("seen", false);
-  };
+  useEffect(() => {
+    scrollToBottom()
+}, [messages]);
 
   const handleCancel = () => {
     setSelectedUser(null);
   };
+
 
   if (!selectedUser)
     return (
@@ -146,7 +129,7 @@ const Messages = ({
         </header>
         <div className="relative p-2 h-[92.5%]">
           <div className="absolute inset-0 bg-[url('/bg1.jpg')] bg-auto bg-center before:absolute before:inset-0 before:bg-black/50"></div>
-          <div className="relative z-10 flex-1 overflow-y-auto py-3 space-y-2 h-[91%] [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+          <div className="relative z-10 flex flex-col overflow-y-auto py-3 space-y-2 h-[91%] [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
             {messages.map((m) => (
               <div
                 key={m.id}
@@ -157,15 +140,9 @@ const Messages = ({
                 }`}
               >
                 {m.text}
-                {m.sender_id === myId && (
-                  <span className="text-xs ml-2">
-                    {m.seen ? "Seen" : "Sent"}
-                  </span>
-                )}
               </div>
             ))}
-
-            <div ref={messagesEndRef} />
+            <div ref={messagesEndRef}></div>
           </div>
           <footer className="relative z-10 pt-0.5">
             <form onSubmit={sendMessage} className="flex items-center mb-2">

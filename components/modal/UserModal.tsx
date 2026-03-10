@@ -20,17 +20,25 @@ import { IoMdPersonAdd } from "react-icons/io";
 import { IoSearchSharp } from "react-icons/io5";
 
 export function UserModal({
-  myId,
   openConversation,
 }: {
-  myId: string;
   openConversation: (user: User) => void;
 }) {
   const [search, setSearch] = useState("");
+  const [myId, setMyId] = useState<string | null>(null);
   const [searchUsers, setSearchUsers] = useState<User[] | null>([]);
   const [pendingUsers, setPendingUsers] = useState<User[] | null>([]);
   const [acceptUsers, setAcceptUsers] = useState<User[] | null>([]);
   const isValidEmail = /^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/g;
+
+  useEffect(() => {
+    getUser();
+  }, []);
+
+  const getUser = async () => {
+    const user = (await supabase.auth.getUser()).data.user;
+    setMyId(user?.id || null);
+  };
 
   useEffect(() => {
     fetchUser();
@@ -55,45 +63,79 @@ export function UserModal({
     setAcceptUsers(acceptId!);
   };
 
-  const handleSearch = async (value: string) => {
-    setSearch(value);
+  // useEffect(() => {
+  //   if (!myId) return;
 
-    if (!value) return setSearchUsers([]);
-    const { data } = await supabase
-      .from("profiles")
-      .select("*")
-      .ilike("username", `%${value}%`)
-      .neq("id", myId);
+  //   fetchUser();
 
-      if (!value) return setSearchUsers([]);
-    setSearchUsers(data);
-  };
+  //   const channel = supabase
+  //     .channel(`users-realtime-${myId}`)
+  //     .on(
+  //       "postgres_changes",
+  //       {
+  //         event: "*",
+  //         schema: "public",
+  //         table: "invites",
+  //       },
+  //       () => fetchUser(),
+  //     )
+  //     .subscribe();
 
-  const sendInvite = async (id: string) => {
+  //   return () => {
+  //     supabase.removeChannel(channel);
+  //   };
+  // }, [myId]);
+
+const handleSearch = async (value: string) => {
+  setSearch(value);
+  if (value === "") return setSearchUsers([]);
 
   const { data } = await supabase
-    .from("invites")
+    .from("profiles")
     .select("*")
-    .or(
-      `and(sender_id.eq.${myId},receiver_id.eq.${id}),
-       and(sender_id.eq.${id},receiver_id.eq.${myId})`
-    )
-    .maybeSingle();
+    .or(`username.ilike.%${value}%,email.ilike.%${value}%`)
+    .neq("id", myId);
 
-  if (data) {
-    toast.error("Invite already exists");
-    return;
-  }
-
-  await supabase.from("invites").insert({
-    sender_id: myId,
-    receiver_id: id,
-    status: "pending",
-  });
-
-  fetchUser();
-  toast.success("Invite sent");
+    if (value !== "") return setSearchUsers(data || []);
+    
 };
+
+  const sendInvite = async (id: string) => {
+    if (!myId) return;
+
+    const { data, error } = await supabase
+      .from("invites")
+      .select("*")
+      .or(
+        `and(sender_id.eq.${myId},receiver_id.eq.${id}),and(sender_id.eq.${id},receiver_id.eq.${myId})`,
+      )
+      .maybeSingle();
+
+    if (error) {
+      console.log(error);
+      toast.error(error.message);
+      return;
+    }
+
+    if (data) {
+      toast.error("Invite already exists");
+      return;
+    }
+
+    const { error: insertError } = await supabase.from("invites").insert({
+      sender_id: myId,
+      receiver_id: id,
+      status: "pending",
+    });
+
+    if (insertError) {
+      toast.error(insertError.message);
+      return;
+    }
+
+    fetchUser();
+    toast.success("Invite sent");
+  };
 
   return (
     <Dialog>
@@ -140,7 +182,7 @@ export function UserModal({
                 </div>
 
                 <button className=" text-sm cursor-pointer">
-                  {user.account_type || acceptUsers?.includes(user?.id) ? (
+                  {!user.account_type || acceptUsers?.includes(user?.id) ? (
                     <DialogClose asChild>
                       <AiFillMessage
                         onClick={() => {

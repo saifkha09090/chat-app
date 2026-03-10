@@ -11,7 +11,7 @@ import {
 import { FaToggleOff, FaToggleOn } from "react-icons/fa";
 import { IoMdSettings } from "react-icons/io";
 
-export function SettingModal({on, toggle}: any) {
+export function SettingModal({on, toggle}: any) {  
   return (
     <Dialog>
       <DialogTrigger asChild>

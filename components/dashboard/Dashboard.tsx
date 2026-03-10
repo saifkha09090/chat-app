@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Sidebar from "../chat/sidebar/Sidebar";
 import Messages from "../chat/messages/Messages";
 
@@ -22,7 +22,6 @@ const Dashboard = () => {
         setOpen={setOpen}
         conversationId={conversationId}
         setSelectedUser={setSelectedUser}
-        setConversationId={setConversationId}
       />
     </div>
   );

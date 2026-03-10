@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
 import { MdOutlineDelete } from "react-icons/md";
 import { UserModal } from "@/components/modal/UserModal";
 import { SettingModal } from "@/components/modal/SettingModal";
-import { ReceiveModal } from "@/components/modal/ReceiveModal";
+import { ReceiveModal } from "../../modal/ReceiveModal";
 import { Conversation } from "@/types/type";
 
 type props = {
@@ -29,7 +29,7 @@ const Sidebar = ({
   const [conversations, setConversations] = useState<Conversation[] | null>([]);
   const [myId, setMyId] = useState<string | null>(null);
   const [myUsername, setMyUsername] = useState<string | null>(null);
-  const [toggle, setToggle] = useState(false);
+  const [toggle, setToggle] = useState();
 
   useEffect(() => {
     getUser();
@@ -45,6 +45,7 @@ const Sidebar = ({
   useEffect(() => {
     if (!myId) return;
 
+    getToggleVal();
     const channel = supabase
       .channel("conversation_realtime")
       .on(
@@ -58,14 +59,16 @@ const Sidebar = ({
     };
   }, [myId]);
 
-  const fetchConversation = async (userId: string | undefined) => {
+  const fetchConversation = async (myId: string | undefined) => {
+    if (!myId) return;
     const { data } = await supabase
       .from("conversations")
       .select(
         `*,user1_profile:profiles!conversations_user1_fkey(*),
         user2_profile:profiles!conversations_user2_fkey(*)`,
       )
-      .or(`user1.eq.${userId},user2.eq.${userId}`);
+      .order("created_at", { ascending: false })
+      .or(`user1.eq.${myId},user2.eq.${myId}`);
 
     setConversations(data || []);
   };
@@ -73,7 +76,7 @@ const Sidebar = ({
   const handleSearch = async (value: string) => {
     setSearch(value);
 
-    if (!value) return setSearchUsers([]);
+    if (value === "") return setSearchUsers([]);
 
     const { data } = await supabase
       .from("invites")
@@ -91,11 +94,13 @@ const Sidebar = ({
       i.sender_id === myId ? i.receiver : i.sender,
     );
 
-    const filtered = users.filter((u: any) =>
-      u.username.toLowerCase().includes(value.toLowerCase()),
+    const uniqueUsers = Array.from(
+      new Map(users.map((u: any) => [u.id, u])).values(),
     );
 
-    setSearchUsers(filtered);
+    const filtered = uniqueUsers.filter((u: any) => u.username.includes(value));
+
+    if (value !== "") return setSearchUsers(filtered);
   };
 
   const openConversation = async (user: any) => {
@@ -120,9 +125,11 @@ const Sidebar = ({
         })
         .select()
         .single();
+
       setConversationId(data.id);
     }
 
+    fetchConversation(myId!);
     setSearch("");
     setSearchUsers([]);
   };
@@ -132,20 +139,38 @@ const Sidebar = ({
       .from("conversations")
       .delete()
       .eq("id", id);
-    if (error) {
-      console.log("error", error);
+
+    if (!error) {
+      setSelectedUser(null);
+      setConversationId(null);
+      fetchConversation(myId!);
     }
-    fetchConversation(myId!);
-    setSelectedUser(null);
-    setConversationId(null);
+  };
+
+  const getToggleVal = async () => {
+    if (!myId) return;
+
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("account_type")
+      .eq("id", myId)
+      .single();
+
+    if (!error && data) {
+      setToggle(data.account_type);
+    }
   };
 
   const on = async () => {
-    setToggle(!toggle);
-    await supabase
+    const newValue = !toggle;
+    const { data } = await supabase
       .from("profiles")
-      .update({ account_type: !toggle })
-      .eq("id", myId);
+      .update({ account_type: newValue })
+      .eq("id", myId)
+      .select()
+      .single();
+
+    setToggle(data.account_type);
   };
 
   return (
@@ -228,8 +253,8 @@ const Sidebar = ({
           </div>
         </main>
         <footer className="flex justify-center gap-2">
-          <ReceiveModal myId={myId!} openConversation={openConversation} />
-          <UserModal myId={myId!} openConversation={openConversation} />
+          <ReceiveModal openConversation={openConversation} />
+          <UserModal openConversation={openConversation} />
           <SettingModal on={on} toggle={toggle} />
         </footer>
       </div>
@@ -318,8 +343,8 @@ const Sidebar = ({
           </div>
         </main>
         <footer className="flex justify-center gap-2">
-          <ReceiveModal myId={myId!} openConversation={openConversation} />
-          <UserModal myId={myId!} openConversation={openConversation} />
+          <ReceiveModal openConversation={openConversation} />
+          <UserModal openConversation={openConversation} />
           <SettingModal on={on} toggle={toggle} />
         </footer>
       </div>
